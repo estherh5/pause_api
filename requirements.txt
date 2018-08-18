@@ -1,4 +1,5 @@
 alembic==0.9.9
+bs4==0.0.1
 certifi==2018.4.16
 chardet==3.0.4
 click==6.7
@@ -10,6 +11,7 @@ itsdangerous==0.24
 Jinja2==2.9.6
 MarkupSafe==1.0
 psycopg2-binary==2.7.4
+requests==2.18.4
 six==1.11.0
 sqlalchemy==1.2.7
 testing.common.database==2.0.3
