@@ -8,7 +8,7 @@
 1. Clone this repository on your server.
 2. Install requirements by running `pip install -r requirements.txt`.
 3. Create a PostgreSQL database to store Pause activities data, as well as a user that has all privileges on your database.
-4. Set the following environment variables for the API (Note: This API was built for Google Cloud Platform's App Engine, so environment variables are specified in the `app.yaml` file):
+4. Set the following environment variables for the API:
     * `FLASK_APP` for the Flask application name for your server ("server.py")
     * `ENV_TYPE` for the environment status (set this to "Dev" for testing or "Prod" for live)
     * `DB_CONNECTION` for the [database URL](http://docs.sqlalchemy.org/en/latest/core/engines.html#database-urls) to connect to your database via SQLAlchemy ORM (i.e., '<dialect+driver://username:password@host:port/database>')
