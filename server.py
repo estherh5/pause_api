@@ -1,7 +1,5 @@
 import os
-import requests
 
-from bs4 import BeautifulSoup
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
@@ -11,23 +9,6 @@ app = Flask(__name__)
 cors = CORS(app, resources={r"/api/*": {"origins": "*"}})
 if os.environ['ENV_TYPE'] == 'Dev':
     app.config['DEBUG'] = True
-
-
-@app.route('/api/marian/image/<symbol>/<article_id>', methods=['GET'])
-def stock_image(symbol, article_id):
-    if request.method == 'GET':
-        article_url = ('https://api.iextrading.com/1.0/stock/' + symbol +
-            '/article/' + article_id)
-
-        article_html = requests.get(article_url)
-
-        html_content = article_html.content
-
-        article_soup = BeautifulSoup(html_content, 'html.parser')
-
-        image = article_soup.find(property='og:image').get('content')
-
-        return jsonify(image)
 
 
 @app.route('/api/pause/activities', methods=['POST'])
