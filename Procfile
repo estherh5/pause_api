@@ -1,1 +1,1 @@
-web: gunicorn server:app --workers=$NUM_WORKERS --timeout=$TIMEOUT --log-file -
+web: gunicorn server:app --access-logfile - --error-logfile -

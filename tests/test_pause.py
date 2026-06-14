@@ -1,180 +1,126 @@
 import json
+import re
 
-from utils.tests import PauseTestCase
+import pytest
+
+from pause import models
 
 
-# Test /api/pause/activities endpoint [POST, GET]
-class TestActivities(PauseTestCase):
-    def test_activities_post_and_get_day_data(self):
-        # Arrange
-        activities = {'0': {'id': 0, 'value': 24, 'label': 'test'}}
-        chart_types = {'0': 'pie'}
-        time_unit = 'day'
+@pytest.fixture
+def day_data():
+    return {
+        "activities": {
+            "0": [
+                {"id": 0, "value": 16, "label": "", "color": "#DCDCDC"},
+                {"id": 1, "value": 8, "label": "sleep", "color": "#ff6300"},
+                {"id": "?", "value": "", "label": ""},
+            ]
+        },
+        "chartTypes": {"0": "pie"},
+        "timeUnit": "day",
+        "month": None,
+        "year": None,
+    }
 
-        data = {
-            'activities': activities,
-            'chartTypes': chart_types,
-            'timeUnit': time_unit
-        }
 
-        # Act [POST]
-        post_response = self.client.post(
-            '/api/pause/activities',
-            data=json.dumps(data),
-            content_type='application/json'
+def test_health(client):
+    response = client.get("/health")
+
+    assert response.status_code == 200
+    assert response.get_json() == {"status": "ok"}
+
+
+def test_create_and_read_day_data(client, day_data):
+    post_response = client.post("/api/pause/activities", json=day_data)
+
+    assert post_response.status_code == 201
+    activities_id = post_response.get_json()
+    assert re.fullmatch(r"[A-Za-z0-9]{16}", activities_id)
+
+    get_response = client.get(f"/api/pause/activities/{activities_id}")
+
+    assert get_response.status_code == 200
+    assert get_response.get_json() == {
+        "activities": day_data["activities"],
+        "chart_types": day_data["chartTypes"],
+        "time_unit": "day",
+        "month": None,
+        "year": None,
+    }
+
+
+def test_create_and_read_month_data(client, day_data):
+    payload = {
+        **day_data,
+        "timeUnit": "month",
+        "month": "January",
+        "year": 2026,
+    }
+
+    activities_id = client.post(
+        "/api/pause/activities",
+        json=payload,
+    ).get_json()
+    response = client.get(f"/api/pause/activities/{activities_id}")
+
+    assert response.status_code == 200
+    assert response.get_json()["month"] == "January"
+    assert response.get_json()["year"] == 2026
+
+
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    [
+        (None, "Request must contain activities and time unit"),
+        (
+            {"activities": [], "chartTypes": {}, "timeUnit": "day"},
+            "Activities must be a dictionary",
+        ),
+        (
+            {"activities": {}, "chartTypes": [], "timeUnit": "day"},
+            "Chart types must be a dictionary",
+        ),
+        (
+            {"activities": {}, "chartTypes": {}, "timeUnit": []},
+            "Time unit must be a string",
+        ),
+        (
+            {"activities": {}, "chartTypes": {}, "timeUnit": "year"},
+            "Time unit must be day, week, or month",
+        ),
+        (
+            {"activities": {}, "chartTypes": {}, "timeUnit": "month"},
+            "Month data must contain a month and year",
+        ),
+    ],
+)
+def test_create_validation(client, payload, message):
+    response = client.post("/api/pause/activities", json=payload)
+
+    assert response.status_code == 400
+    assert response.get_data(as_text=True) == message
+
+
+def test_read_not_found(client):
+    response = client.get("/api/pause/activities/missing")
+
+    assert response.status_code == 404
+    assert response.get_data(as_text=True) == "Activities not found"
+
+
+def test_reads_rows_created_by_original_api(client, day_data):
+    with models.session_scope() as session:
+        session.add(
+            models.Activities(
+                external_id="legacy",
+                activities=json.dumps(day_data["activities"]),
+                chart_types=json.dumps(day_data["chartTypes"]),
+                time_unit="day",
             )
-        activities_id = post_response.get_data(as_text=True)
+        )
 
-        # Assert [POST]
-        self.assertEqual(post_response.status_code, 201)
+    response = client.get("/api/pause/activities/legacy")
 
-        # Act [GET]
-        get_response = self.client.get(
-            '/api/pause/activities/' + activities_id
-            )
-        activities_data = json.loads(get_response.get_data(as_text=True))
-
-        # Assert [GET]
-        self.assertEqual(get_response.status_code, 200)
-        self.assertEqual(activities_data['activities'], activities)
-        self.assertEqual(activities_data['chart_types'], chart_types)
-        self.assertEqual(activities_data['time_unit'], time_unit)
-
-    def test_activities_post_data_error(self):
-        # Act
-        post_response = self.client.post(
-            '/api/pause/activities'
-            )
-        error = post_response.get_data(as_text=True)
-
-        # Assert
-        self.assertEqual(post_response.status_code, 400)
-        self.assertEqual(
-            error, 'Request must contain activities and time unit')
-
-    def test_activities_post_activities_error(self):
-        # Arrange
-        activities = [{'id': 0, 'value': 24, 'label': 'test'}]
-        chart_types = {'0': 'pie'}
-        time_unit = 'day'
-
-        data = {
-            'activities': activities,
-            'chartTypes': chart_types,
-            'timeUnit': time_unit
-        }
-
-        # Act [POST]
-        post_response = self.client.post(
-            '/api/pause/activities',
-            data=json.dumps(data),
-            content_type='application/json'
-            )
-        error = post_response.get_data(as_text=True)
-
-        # Assert
-        self.assertEqual(post_response.status_code, 400)
-        self.assertEqual(error, 'Activities must be a dictionary')
-
-    def test_activities_post_chart_types_error(self):
-        # Arrange
-        activities = {'0': {'id': 0, 'value': 24, 'label': 'test'}}
-        chart_types = ['pie']
-        time_unit = 'day'
-
-        data = {
-            'activities': activities,
-            'chartTypes': chart_types,
-            'timeUnit': time_unit
-        }
-
-        # Act [POST]
-        post_response = self.client.post(
-            '/api/pause/activities',
-            data=json.dumps(data),
-            content_type='application/json'
-            )
-        error = post_response.get_data(as_text=True)
-
-        # Assert
-        self.assertEqual(post_response.status_code, 400)
-        self.assertEqual(error, 'Chart types must be a dictionary')
-
-    def test_activities_post_time_unit_error(self):
-        # Arrange
-        activities = {'0': {'id': 0, 'value': 24, 'label': 'test'}}
-        chart_types = {'0': 'pie'}
-        time_unit = ['day']
-
-        data = {
-            'activities': activities,
-            'chartTypes': chart_types,
-            'timeUnit': time_unit
-        }
-
-        # Act [POST]
-        post_response = self.client.post(
-            '/api/pause/activities',
-            data=json.dumps(data),
-            content_type='application/json'
-            )
-        error = post_response.get_data(as_text=True)
-
-        # Assert
-        self.assertEqual(post_response.status_code, 400)
-        self.assertEqual(error, 'Time unit must be a string')
-
-    def test_activities_post_and_get_month_data(self):
-        # Arrange
-        activities = {'0': {'id': 0, 'value': 24, 'label': 'test'}}
-        chart_types = {'0': 'pie'}
-        time_unit = 'month'
-        month = 'January'
-        year = 2018
-
-        data = {
-            'activities': activities,
-            'chartTypes': chart_types,
-            'timeUnit': time_unit,
-            'month': month,
-            'year': year
-        }
-
-        # Act [POST]
-        post_response = self.client.post(
-            '/api/pause/activities',
-            data=json.dumps(data),
-            content_type='application/json'
-            )
-        activities_id = post_response.get_data(as_text=True)
-
-        # Assert [POST]
-        self.assertEqual(post_response.status_code, 201)
-
-        # Act [GET]
-        get_response = self.client.get(
-            '/api/pause/activities/' + activities_id
-            )
-        activities_data = json.loads(get_response.get_data(as_text=True))
-
-        # Assert [GET]
-        self.assertEqual(get_response.status_code, 200)
-        self.assertEqual(activities_data['activities'], activities)
-        self.assertEqual(activities_data['chart_types'], chart_types)
-        self.assertEqual(activities_data['time_unit'], time_unit)
-        self.assertEqual(activities_data['month'], month)
-        self.assertEqual(activities_data['year'], year)
-
-    def test_activities_get_not_found(self):
-        # Arrange
-        external_id = 'test'
-
-        # Act
-        get_response = self.client.get(
-            '/api/pause/activities/' + external_id
-            )
-        error = get_response.get_data(as_text=True)
-
-        # Assert
-        self.assertEqual(get_response.status_code, 404)
-        self.assertEqual(error, 'Activities not found')
+    assert response.status_code == 200
+    assert response.get_json()["activities"] == day_data["activities"]
+    assert response.get_json()["chart_types"] == day_data["chartTypes"]

@@ -1,98 +1,108 @@
 import json
-import random
+import secrets
 import string
 
-from flask import jsonify, make_response, request
-from sqlalchemy.orm.exc import NoResultFound
+from flask import Blueprint, jsonify, make_response, request
+from sqlalchemy import select
 
 from pause import models
 
+api = Blueprint("pause", __name__)
+EXTERNAL_ID_ALPHABET = string.ascii_letters + string.digits
+VALID_TIME_UNITS = {"day", "week", "month"}
 
+
+def generate_external_id(length=16):
+    return "".join(secrets.choice(EXTERNAL_ID_ALPHABET) for _ in range(length))
+
+
+def decode_json_value(value):
+    # Rows created by the original API stored JSON strings inside JSON columns.
+    return json.loads(value) if isinstance(value, str) else value
+
+
+def validate_payload(data):
+    if (
+        not data
+        or "activities" not in data
+        or "chartTypes" not in data
+        or "timeUnit" not in data
+    ):
+        return "Request must contain activities and time unit"
+
+    if not isinstance(data["activities"], dict):
+        return "Activities must be a dictionary"
+
+    if not isinstance(data["chartTypes"], dict):
+        return "Chart types must be a dictionary"
+
+    if not isinstance(data["timeUnit"], str):
+        return "Time unit must be a string"
+
+    if data["timeUnit"] not in VALID_TIME_UNITS:
+        return "Time unit must be day, week, or month"
+
+    if data["timeUnit"] == "month" and (
+        not isinstance(data.get("month"), str) or not isinstance(data.get("year"), int)
+    ):
+        return "Month data must contain a month and year"
+
+    return None
+
+
+@api.post("/activities")
 def create_activities():
-    # Request should contain:
-    # activities <dict>
-    # chartTypes <dict>
-    # timeUnit <str>
-    # month <str> (optional)
-    # year <int> (optional)
-    data = request.get_json()
+    data = request.get_json(silent=True)
+    error = validate_payload(data)
 
-    # Return error if request is missing data
-    if (not data or 'activities' not in data or 'chartTypes' not in data or
-        'timeUnit' not in data):
-            return make_response(
-                'Request must contain activities and time unit', 400)
+    if error:
+        return make_response(error, 400)
 
-    # Return error if activities is not a dictionary
-    if not isinstance(data['activities'], dict):
-        return make_response('Activities must be a dictionary', 400)
+    month = data.get("month") if data["timeUnit"] == "month" else None
+    year = data.get("year") if data["timeUnit"] == "month" else None
 
-    # Return error if chartTypes is not a dictionary
-    if not isinstance(data['chartTypes'], dict):
-        return make_response('Chart types must be a dictionary', 400)
+    with models.session_scope() as session:
+        external_id = generate_external_id()
 
-    # Return error if timeUnit is not a string
-    if not isinstance(data['timeUnit'], str):
-        return make_response('Time unit must be a string', 400)
+        while session.scalar(
+            select(models.Activities.id).where(
+                models.Activities.external_id == external_id
+            )
+        ):
+            external_id = generate_external_id()
 
-    if data['timeUnit'] == 'month':
-        month = data['month']
-        year = data['year']
-
-    else:
-        month = None
-        year = None
-
-    # Generate random external id for activities
-    external_id = ''.join(
-        random.choices(string.ascii_letters + string.digits, k=16))
-
-    # Connect to database
-    session = models.Session()
-
-    # Add activities to database
-    activities = models.Activities(
-        external_id=external_id,
-        activities=json.dumps(data['activities']),
-        chart_types=json.dumps(data['chartTypes']),
-        time_unit=data['timeUnit'],
-        month=month,
-        year=year
+        session.add(
+            models.Activities(
+                external_id=external_id,
+                activities=data["activities"],
+                chart_types=data["chartTypes"],
+                time_unit=data["timeUnit"],
+                month=month,
+                year=year,
+            )
         )
 
-    session.add(activities)
-
-    session.commit()
-
-    session.close()
-
-    return make_response(external_id, 201)
+    return jsonify(external_id), 201
 
 
+@api.get("/activities/<activities_id>")
 def read_activities(activities_id):
-    # Connect to database
-    session = models.Session()
+    with models.session_scope() as session:
+        activities = session.scalar(
+            select(models.Activities).where(
+                models.Activities.external_id == activities_id
+            )
+        )
 
-    # Retrieve activities from database
-    try:
-        activities = session.query(models.Activities).with_entities(
-            models.Activities.activities, models.Activities.chart_types,
-            models.Activities.time_unit, models.Activities.month,
-            models.Activities.year).filter(
-            models.Activities.external_id == activities_id).limit(1).one()
+        if activities is None:
+            return make_response("Activities not found", 404)
 
-        session.close()
+        response = {
+            "activities": decode_json_value(activities.activities),
+            "chart_types": decode_json_value(activities.chart_types),
+            "time_unit": activities.time_unit,
+            "month": activities.month,
+            "year": activities.year,
+        }
 
-        activities = activities._asdict()
-
-        # Convert JSON data to dictionary
-        activities['activities'] = json.loads(activities['activities'])
-        activities['chart_types'] = json.loads(activities['chart_types'])
-
-        return jsonify(activities)
-
-    # Return error if activities not returned from query
-    except NoResultFound:
-        session.close()
-
-        return make_response('Activities not found', 404)
+    return jsonify(response)

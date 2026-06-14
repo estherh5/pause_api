@@ -1,0 +1,10 @@
+[tool.pytest.ini_options]
+addopts = "--cov=pause --cov=server --cov-report=term-missing"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]

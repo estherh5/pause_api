@@ -1,28 +1,43 @@
 import os
+from pathlib import Path
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify
 from flask_cors import CORS
 
-from pause import pause
-
-app = Flask(__name__)
-cors = CORS(app, resources={r"/api/*": {"origins": "*"}})
-if os.environ['ENV_TYPE'] == 'Dev':
-    app.config['DEBUG'] = True
+from pause import models
+from pause.pause import api
 
 
-@app.route('/api/pause/activities', methods=['POST'])
-def pause_activities():
-    # Post Pause activities data when client sends the jsonified activities,
-    # chart types, time unit, month, and year in the request body; no bearer
-    # token needed
-    if request.method == 'POST':
-        return pause.create_activities()
+def create_app(config=None):
+    app = Flask(__name__)
+    default_database = f"sqlite:///{Path(__file__).with_name('pause.db')}"
+    app.config.from_mapping(
+        DATABASE_URL=os.getenv(
+            "DB_CONNECTION",
+            os.getenv("DATABASE_URL", default_database),
+        ),
+        CORS_ORIGINS=os.getenv("CORS_ORIGINS", "*"),
+    )
+
+    if config:
+        app.config.update(config)
+
+    models.configure_database(app.config["DATABASE_URL"])
+    CORS(
+        app,
+        resources={
+            r"/api/*": {
+                "origins": app.config["CORS_ORIGINS"],
+            },
+        },
+    )
+    app.register_blueprint(api, url_prefix="/api/pause")
+
+    @app.get("/health")
+    def health():
+        return jsonify(status="ok")
+
+    return app
 
 
-@app.route('/api/pause/activities/<activities_id>', methods=['GET'])
-def pause_activities_id(activities_id):
-    # Get Pause activities data when client sends the activities id in the
-    # request URL; no bearer token needed
-    if request.method == 'GET':
-        return pause.read_activities(activities_id)
+app = create_app()
