@@ -7,3 +7,7 @@ __pycache__
 .venv*
 htmlcov/
 pause.db
+
+# Vercel CLI link metadata -- never commit
+.vercel/
+.vercel

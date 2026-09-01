@@ -1,0 +1,15 @@
+# Tool-config only (pytest/ruff); it has no [project] table, so Vercel's Python
+# builder would try `uv lock` against it and fail. requirements.txt is the single
+# source of truth for this app's dependencies (see .github/workflows/ci.yml).
+pyproject.toml
+
+# Mirrors .gitignore -- .vercelignore replaces .gitignore for upload filtering
+__pycache__
+*.pyc
+.venv*
+.coverage
+.pytest_cache/
+.ruff_cache/
+htmlcov/
+pause.db
+.DS_Store
