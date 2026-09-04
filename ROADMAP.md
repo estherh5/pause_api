@@ -7,6 +7,10 @@ Committed doc, not scratch. Kept current by hand as work ships.
 
 ## Shipped
 
+- **2026-09** **Heroku decommissioned.** The `pause-app-api` app and its add-ons were destroyed on
+  2026-09-04 after three days of parallel running with zero real traffic. A final pre-destroy dump
+  was taken and row-matched against Neon on every table before deletion. Its scheduler add-on held no active job.
+
 - **2026-09** **Off Heroku onto Vercel.** The API is served from `pause-api.crystalprism.io`;
   `pause`'s `src/App.jsx` points its `PRODUCTION_API_URL` there. It keeps using the
   `crystalprism` database, now on Neon (project `old-sun-58330819`, PostgreSQL 18), shared with
