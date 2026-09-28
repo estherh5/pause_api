@@ -16,6 +16,10 @@ Committed doc, not scratch. Kept current by hand as work ships.
   `crystalprism` database, now on Neon (project `old-sun-58330819`, PostgreSQL 18), shared with
   the main API and vroom, so it is covered by that database's nightly dump.
 
+## Next
+
+- [security] **Anonymous POST stores arbitrary-size JSON, CORS `*` (Medium).** `pause/pause.py#create_activities` validates only types; `server.py` `CORS_ORIGINS`. Fix: `MAX_CONTENT_LENGTH`, a rate limit, and restrict `CORS_ORIGINS` to pause.crystalprism.io.
+
 ## Declined
 
 - **CORS headers on `/health`** (decided 2026-09). Only `/api/*` gets CORS in `server.py`'s
