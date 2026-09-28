@@ -16,8 +16,10 @@ Committed doc, not scratch. Kept current by hand as work ships.
   `crystalprism` database, now on Neon (project `old-sun-58330819`, PostgreSQL 18), shared with
   the main API and vroom, so it is covered by that database's nightly dump.
 
-## Open questions
+## Declined
 
-- `/health` has no CORS headers, unlike `/api/*`. Harmless today — the app only ever calls
-  `/api/*` from a browser, and `/health` is hit by curl and uptime checks — but if anything ever
-  needs to read it from a page, that is the reason it will fail.
+- **CORS headers on `/health`** (decided 2026-09). Only `/api/*` gets CORS in `server.py`'s
+  `create_app`. `/health` is for machines (curl, uptime checks). No page reads it, and its
+  constant `{"status": "ok"}` is not worth reading from a page. If a page ever needs it, that
+  missing header is why the request fails: add `r"/health"` to the `resources` passed to `CORS`
+  in `create_app`, a one-line change.
