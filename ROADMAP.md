@@ -7,6 +7,9 @@ Committed doc, not scratch. Kept current by hand as work ships.
 
 ## Shipped
 
+- **2026-09** **Pushes to `main` deploy.** The Vercel project is now git-connected (production
+  branch `main`); before this, only `vercel --prod` deployed it, and a push produced no build.
+
 - **2026-09** **Heroku decommissioned.** The `pause-app-api` app and its add-ons were destroyed on
   2026-09-04 after three days of parallel running with zero real traffic. A final pre-destroy dump
   was taken and row-matched against Neon on every table before deletion. Its scheduler add-on held no active job.
