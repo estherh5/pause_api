@@ -1,9 +1,11 @@
 import json
 import re
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
 from pause import models
+from pause.pause import CREATE_LIMIT, CREATE_WINDOW
 
 
 @pytest.fixture
@@ -124,3 +126,65 @@ def test_reads_rows_created_by_original_api(client, day_data):
     assert response.status_code == 200
     assert response.get_json()["activities"] == day_data["activities"]
     assert response.get_json()["chart_types"] == day_data["chartTypes"]
+
+
+def test_create_rejects_oversized_body(client, day_data):
+    day_data["activities"]["0"][0]["label"] = "x" * 70_000
+
+    response = client.post("/api/pause/activities", json=day_data)
+
+    assert response.status_code == 413
+    with models.session_scope() as session:
+        assert session.query(models.Activities).count() == 0
+
+
+def test_create_is_rate_limited(client, day_data):
+    for _ in range(CREATE_LIMIT):
+        assert client.post("/api/pause/activities", json=day_data).status_code == 201
+
+    response = client.post("/api/pause/activities", json=day_data)
+
+    assert response.status_code == 429
+    with models.session_scope() as session:
+        assert session.query(models.Activities).count() == CREATE_LIMIT
+
+
+def test_create_limit_ignores_rows_older_than_the_window(client, day_data):
+    stale = datetime.now(timezone.utc).replace(tzinfo=None) - CREATE_WINDOW
+    with models.session_scope() as session:
+        for index in range(CREATE_LIMIT):
+            session.add(
+                models.Activities(
+                    external_id=f"old{index}",
+                    activities={},
+                    chart_types={},
+                    time_unit="day",
+                    created=stale,
+                )
+            )
+
+    response = client.post("/api/pause/activities", json=day_data)
+
+    assert response.status_code == 201
+
+
+def test_create_limit_is_pinned():
+    assert CREATE_LIMIT == 10
+    assert timedelta(hours=1) == CREATE_WINDOW
+
+
+def test_cors_defaults_to_the_pause_frontend(client):
+    allowed = client.get(
+        "/api/pause/activities/missing",
+        headers={"Origin": "https://pause.crystalprism.io"},
+    )
+    other = client.get(
+        "/api/pause/activities/missing",
+        headers={"Origin": "https://evil.example"},
+    )
+
+    assert (
+        allowed.headers["Access-Control-Allow-Origin"]
+        == "https://pause.crystalprism.io"
+    )
+    assert "Access-Control-Allow-Origin" not in other.headers

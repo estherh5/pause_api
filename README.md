@@ -29,8 +29,8 @@ flask --app server run --debug
 ```
 
 Copy `.env.example` as a starting point for the supported environment
-variables. `CORS_ORIGINS` defaults to `*`; production deployments should set it
-to the Pause frontend origin.
+variables. `CORS_ORIGINS` defaults to `https://pause.crystalprism.io`; set it to
+`http://localhost:5173` to call a local API from the Vite dev server.
 
 ## Checks
 

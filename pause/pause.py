@@ -1,15 +1,21 @@
 import json
 import secrets
 import string
+from datetime import datetime, timedelta, timezone
 
 from flask import Blueprint, jsonify, make_response, request
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from pause import models
 
 api = Blueprint("pause", __name__)
 EXTERNAL_ID_ALPHABET = string.ascii_letters + string.digits
 VALID_TIME_UNITS = {"day", "week", "month"}
+# The endpoint is anonymous, so cap total writes rather than per-client ones:
+# real traffic is a handful of rows a year, and this bounds storage growth
+# without keeping any record of who posted.
+CREATE_LIMIT = 10
+CREATE_WINDOW = timedelta(hours=1)
 
 
 def generate_external_id(length=16):
@@ -62,6 +68,16 @@ def create_activities():
     year = data.get("year") if data["timeUnit"] == "month" else None
 
     with models.session_scope() as session:
+        window_start = datetime.now(timezone.utc).replace(tzinfo=None) - CREATE_WINDOW
+        recent = session.scalar(
+            select(func.count(models.Activities.id)).where(
+                models.Activities.created > window_start
+            )
+        )
+
+        if recent >= CREATE_LIMIT:
+            return make_response("Too many schedules created, try again later", 429)
+
         external_id = generate_external_id()
 
         while session.scalar(

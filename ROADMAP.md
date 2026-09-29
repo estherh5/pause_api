@@ -7,6 +7,13 @@ Committed doc, not scratch. Kept current by hand as work ships.
 
 ## Shipped
 
+- **2026-09** **Anonymous POST is bounded; CORS is pause-only.** `server.py#create_app` caps
+  request bodies at 64 KB (413) and defaults `CORS_ORIGINS` to `https://pause.crystalprism.io`
+  instead of `*`. `pause/pause.py#create_activities` refuses with 429 once `CREATE_LIMIT` (10)
+  rows were created in the last `CREATE_WINDOW` (1 hour). The limit is global and counted from
+  the DB, so it holds across serverless instances and stores nothing about who posted. Prod had 4
+  rows ever (largest 678 bytes), so real use never gets near either cap.
+
 - **2026-09** **Pushes to `main` deploy.** The Vercel project is now git-connected (production
   branch `main`); before this, only `vercel --prod` deployed it, and a push produced no build.
 
@@ -20,8 +27,6 @@ Committed doc, not scratch. Kept current by hand as work ships.
   the main API and vroom, so it is covered by that database's nightly dump.
 
 ## Next
-
-- [security] **Anonymous POST stores arbitrary-size JSON, CORS `*` (Medium).** `pause/pause.py#create_activities` validates only types; `server.py` `CORS_ORIGINS`. Fix: `MAX_CONTENT_LENGTH`, a rate limit, and restrict `CORS_ORIGINS` to pause.crystalprism.io.
 
 ## Declined
 

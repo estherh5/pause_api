@@ -16,7 +16,9 @@ def create_app(config=None):
             "DB_CONNECTION",
             os.getenv("DATABASE_URL", default_database),
         ),
-        CORS_ORIGINS=os.getenv("CORS_ORIGINS", "*"),
+        CORS_ORIGINS=os.getenv("CORS_ORIGINS", "https://pause.crystalprism.io"),
+        # The largest stored schedule is under 1 KB; a full month fits well within this.
+        MAX_CONTENT_LENGTH=64 * 1024,
     )
 
     if config:
