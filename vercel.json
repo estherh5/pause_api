@@ -4,5 +4,10 @@
     "server.py": {
       "excludeFiles": "{tests/**,.venv/**,alembic/**,**/*.md}"
     }
+  },
+  "git": {
+    "deploymentEnabled": {
+      "flare/*": false
+    }
   }
 }
